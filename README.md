@@ -1,20 +1,18 @@
-# Solar-System-Simulation
+# 🪐 High-Fidelity Solar System N-Body Simulation
 
-# 3D Solar System N-Body Simulation
+A mathematically accurate, 3D interactive simulation of the Solar System built in Python. 
 
-An interactive 3D orbital mechanics simulation of the Solar System built in Python using **VPython**. The project accurately calculates gravitational interactions between celestial bodies while offering smooth UI controls and camera tracking.
+Unlike basic orbital simulators that assume planets move in perfect circles around a stationary Sun, this simulation uses a Full N-Body Newtonian Gravity model. Every celestial body exerts a gravitational pull on every other body. The differential equations are integrated using a Symplectic Velocity Verlet algorithm to ensure energy and momentum are mathematically conserved over time.
 
-## Features
-- **N-Body Physics:** Simulates gravitational forces between all celestial bodies ($F = G \frac{m_1 m_2}{r^2}$).
-- **Velocity Verlet Integration:** High-precision numerical integration for stable, accurate orbital motion.
-- **Interactive Camera Tracking:** Focus the camera on any planet using either the dropdown menu or by directly clicking on 3D objects in the scene.
-- **Visual Enhancements:** Includes dynamic lighting, orbital trail paths, Saturn's rings, custom textures, and a generated background starfield.
-- **Barycenter Momentum Correction:** Automatically balances system momentum at initialization to prevent scene drift.
+ Features
+* Real-time 3D rendering via WebGL (VPython)
+* Dynamic camera tracking (snap to any planet)
+* Dropdown UI to easily locate outer planets like Uranus and Neptune
+* Solar System Barycenter momentum correction
+* Accurate relative masses, starting positions, and velocities
 
-## Requirements
-- Python 3.x
-- `vpython`
+#🚀 How to Run
 
-Install dependencies via pip:
-```bash
-pip install vpython
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git
