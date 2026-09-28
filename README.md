@@ -10,9 +10,3 @@ Unlike basic orbital simulators that assume planets move in perfect circles arou
 * Dropdown UI to easily locate outer planets like Uranus and Neptune
 * Solar System Barycenter momentum correction
 * Accurate relative masses, starting positions, and velocities
-
-#🚀 How to Run
-
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/YOUR-REPO-NAME.git
