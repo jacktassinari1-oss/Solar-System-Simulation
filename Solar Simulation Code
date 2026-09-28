@@ -1,0 +1,227 @@
+"""
+Solar System N-Body Simulation
+Graphics Engine: VPython (Real-time 3D, Lighting, Textures)
+Physics Engine: Full N-Body Newtonian Gravity
+Integrator: Symplectic Velocity Verlet (Energy-conserving)
+"""
+
+from vpython import *
+import math
+import random
+
+# ==========================================
+# 1. PHYSICAL CONSTANTS & CONFIGURATION
+# ==========================================
+G = 6.67430e-11  # Gravitational constant
+AU = 1.496e11    # Astronomical Unit in meters
+dt = 43200       # Simulation time step (12 hours)
+
+# Visual scale multipliers
+SUN_VISUAL_RADIUS = 3e10
+PLANET_VISUAL_RADIUS_BASE = 1.2e10  # Slightly enlarged for better visibility
+
+# ==========================================
+# 2. SCENE SETUP
+# ==========================================
+scene = canvas(title="<b>High-Fidelity Solar System</b>", width=1280, height=720)
+scene.background = color.black
+scene.ambient = color.gray(0.2)
+
+# PERFECT INITIAL VIEW: Angled top-down view focused on the inner solar system & Jupiter
+scene.camera.pos = vector(0, -6 * AU, 4 * AU)
+scene.camera.axis = vector(0, 6 * AU, -4 * AU)
+scene.range = 4 * AU  # Locks the initial zoom level to make it clear what you are looking at
+
+# Main light source centered in the Sun
+scene.lights = []
+local_light(pos=vector(0, 0, 0), color=color.white)
+
+# Add a background starfield
+for _ in range(600):
+    theta = random.uniform(0, 2 * math.pi)
+    phi = random.uniform(0, math.pi)
+    r = 1.5e13  
+    x = r * math.sin(phi) * math.cos(theta)
+    y = r * math.sin(phi) * math.sin(theta)
+    z = r * math.cos(phi)
+    sphere(pos=vector(x, y, z), radius=1e11, color=color.white, emissive=True)
+
+
+# ==========================================
+# 3. CELESTIAL BODY CLASS
+# ==========================================
+class CelestialBody:
+    def __init__(self, name, mass, initial_pos, initial_vel, radius, body_color, texture_file=None, emissive=False):
+        self.name = name
+        self.mass = mass
+        self.pos = initial_pos
+        self.vel = initial_vel
+        self.acc = vector(0, 0, 0)
+        
+        # Increased 'retain' to 600 so the orbits leave longer, easier-to-see trails
+        if texture_file:
+            self.visual = sphere(pos=self.pos, radius=radius, texture=texture_file, 
+                                 make_trail=True, retain=600, trail_radius=radius*0.1, emissive=emissive)
+        else:
+            self.visual = sphere(pos=self.pos, radius=radius, color=body_color, 
+                                 make_trail=True, retain=600, trail_radius=radius*0.1, emissive=emissive)
+            
+        self.visual.body_ref = self
+            
+        self.label = label(pos=self.pos, text=self.name, xoffset=0, yoffset=15, 
+                           height=12, border=0, font='sans', box=False, line=False, 
+                           opacity=0, color=body_color)
+            
+    def update_visual(self):
+        self.visual.pos = self.pos
+        self.label.pos = self.pos
+
+
+# ==========================================
+# 4. INITIAL CONDITIONS
+# ==========================================
+bodies = [
+    CelestialBody("Sun", 1.989e30, vector(0, 0, 0), vector(0, 0, 0), 
+                  SUN_VISUAL_RADIUS, color.yellow, emissive=True),
+    CelestialBody("Mercury", 3.30e23, vector(5.79e10, 0, 0), vector(0, 47400, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 0.4, color.gray(0.5)),
+    CelestialBody("Venus", 4.87e24, vector(1.082e11, 0, 0), vector(0, 35000, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 0.9, color.orange),
+    CelestialBody("Earth", 5.972e24, vector(1.496e11, 0, 0), vector(0, 29780, 0), 
+                  PLANET_VISUAL_RADIUS_BASE, color.white, texture_file=textures.earth),
+    CelestialBody("Mars", 6.42e23, vector(2.28e11, 0, 0), vector(0, 24000, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 0.5, color.red),
+    CelestialBody("Jupiter", 1.898e27, vector(7.78e11, 0, 0), vector(0, 13100, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 3.0, vector(0.8, 0.6, 0.4)),
+    CelestialBody("Saturn", 5.68e26, vector(1.43e12, 0, 0), vector(0, 9600, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 2.5, color.yellow),
+    CelestialBody("Uranus", 8.68e25, vector(2.87e12, 0, 0), vector(0, 6800, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 1.5, color.cyan),
+    CelestialBody("Neptune", 1.02e26, vector(4.50e12, 0, 0), vector(0, 5400, 0), 
+                  PLANET_VISUAL_RADIUS_BASE * 1.5, color.blue)
+]
+
+# Saturn's Rings
+ring = ring(pos=bodies[6].pos, axis=vector(0.2, 1, 0), radius=PLANET_VISUAL_RADIUS_BASE * 4, 
+            thickness=PLANET_VISUAL_RADIUS_BASE * 0.2, color=color.gray(0.7))
+
+# Barycenter momentum correction
+total_momentum = vector(0, 0, 0)
+for b in bodies:
+    total_momentum += b.mass * b.vel
+bodies[0].vel = -total_momentum / bodies[0].mass
+
+
+# ==========================================
+# 5. UI CONTROLS & ORBIT-CLICK LOGIC
+# ==========================================
+focused_body = bodies[0]
+
+scene.append_to_caption('\n<b>Camera Focus:</b> ')
+
+def on_menu_select(m):
+    global focused_body
+    for b in bodies:
+        if b.name == m.selected:
+            focused_body = b
+            break
+
+planet_menu = menu(choices=[b.name for b in bodies], bind=on_menu_select)
+
+scene.append_to_caption('  <i>(Scroll to zoom. <b>Click on a planet\'s orbit line</b> to lock onto it. Click deep space to reset.)</i>\n')
+
+def on_mouse_click(evt):
+    global focused_body
+    clicked_obj = scene.mouse.pick
+    
+    # 1. Did they click directly on a planet's physical sphere?
+    if clicked_obj is not None and hasattr(clicked_obj, 'body_ref'):
+        focused_body = clicked_obj.body_ref
+        planet_menu.selected = focused_body.name
+        return
+        
+    # 2. Did they click near an orbit? 
+    # This projects the mouse ray down onto the 2D orbital plane
+    click_pos = scene.mouse.project(normal=vector(0,0,1), point=vector(0,0,0))
+    
+    if click_pos is not None:
+        # Calculate how far from the Sun the user clicked
+        click_dist_from_sun = mag(click_pos - bodies[0].pos)
+        
+        # If they clicked super close to the Sun, select the Sun
+        if click_dist_from_sun < 0.2 * AU:
+            focused_body = bodies[0]
+            planet_menu.selected = "Sun"
+            return
+            
+        # Find which planet's orbital radius is closest to where the user clicked
+        closest_planet = None
+        min_orbit_dist = float('inf')
+        
+        for b in bodies[1:]: # Skip the Sun in this loop
+            orbit_radius = mag(b.pos - bodies[0].pos)
+            dist_to_orbit = abs(orbit_radius - click_dist_from_sun)
+            
+            if dist_to_orbit < min_orbit_dist:
+                min_orbit_dist = dist_to_orbit
+                closest_planet = b
+                
+        # Calculate a lenient hitbox (larger target area for outer planets)
+        threshold = max(0.15 * AU, mag(closest_planet.pos - bodies[0].pos) * 0.2)
+        
+        if min_orbit_dist < threshold:
+            focused_body = closest_planet
+            planet_menu.selected = focused_body.name
+            return
+            
+    # 3. If they clicked way out in deep space, reset back to the Sun
+    focused_body = bodies[0]
+    planet_menu.selected = "Sun"
+
+scene.bind('mousedown', on_mouse_click)
+
+
+# ==========================================
+# 6. PHYSICS ENGINE
+# ==========================================
+def compute_accelerations():
+    for b in bodies:
+        b.acc = vector(0, 0, 0)
+        
+    for i in range(len(bodies)):
+        for j in range(i + 1, len(bodies)):
+            r_vec = bodies[j].pos - bodies[i].pos
+            r_mag = mag(r_vec)
+            f_mag = G * bodies[i].mass * bodies[j].mass / (r_mag**2)
+            f_vec = f_mag * norm(r_vec)
+            
+            bodies[i].acc += f_vec / bodies[i].mass
+            bodies[j].acc -= f_vec / bodies[j].mass
+
+compute_accelerations()
+
+# ==========================================
+# 7. MAIN SIMULATION LOOP
+# ==========================================
+while True:
+    rate(150) 
+    
+    # --- Velocity Verlet Step 1 ---
+    for b in bodies:
+        b.pos = b.pos + b.vel * dt + 0.5 * b.acc * (dt**2)
+        
+    for b in bodies:
+        b.old_acc = b.acc 
+        
+    # --- Velocity Verlet Step 2 ---
+    compute_accelerations()
+    
+    # --- Velocity Verlet Step 3 ---
+    for b in bodies:
+        b.vel = b.vel + 0.5 * (b.old_acc + b.acc) * dt
+        b.update_visual()
+        
+    ring.pos = bodies[6].pos
+    
+    # Smoothly track the currently selected planet with the camera
+    scene.center = focused_body.pos
